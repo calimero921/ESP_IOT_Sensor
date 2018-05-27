@@ -102,9 +102,9 @@ void setup() {
   }
 
   server.on("/", handleRoot);
-  // server.on("/altitude", HTTP_GET, handleTemperature);
-  // server.on("/humidity", HTTP_GET, handleTemperature);
-  // server.on("/pressure", HTTP_GET, handleTemperature);
+  server.on("/altitude", HTTP_GET, handleAltitude);
+  server.on("/humidity", HTTP_GET, handleHumidity);
+  server.on("/pressure", HTTP_GET, handlePressure);
   server.on("/temperature", HTTP_GET, handleTemperature);
   // server.on("/params", HTTP_GET, handleParams);
   // server.on("/params", HTTP_POST, handleUpdateParams);
@@ -320,6 +320,9 @@ void handleRoot() {
     jsonBuffer.clear();
     JsonObject& root = jsonBuffer.createObject();
     //valeurs
+    root["altitude"] = printAltitude();
+    root["humidity"] = printHumidity();
+    root["pressure"] = printPressure();
     root["temperature"] = printTemperature();
     root.prettyPrintTo(Serial);
     Serial.println();
@@ -337,6 +340,39 @@ void handleParams() {
     root.prettyPrintTo(Serial);
     Serial.println();
     //envoi
+    server.send(200, "application/json", formatJSON(root));
+    digitalWrite(led, 0);
+}
+
+void handleAltitude() {
+    digitalWrite(led, 1);
+    jsonBuffer.clear();
+    JsonObject& root = jsonBuffer.createObject();
+    root["altitude"] = printAltitude();
+    root.prettyPrintTo(Serial);
+    Serial.println();
+    server.send(200, "application/json", formatJSON(root));
+    digitalWrite(led, 0);
+}
+
+void handleHumidity() {
+    digitalWrite(led, 1);
+    jsonBuffer.clear();
+    JsonObject& root = jsonBuffer.createObject();
+    root["humidity"] = printHumidity();
+    root.prettyPrintTo(Serial);
+    Serial.println();
+    server.send(200, "application/json", formatJSON(root));
+    digitalWrite(led, 0);
+}
+
+void handlePressure() {
+    digitalWrite(led, 1);
+    jsonBuffer.clear();
+    JsonObject& root = jsonBuffer.createObject();
+    root["pressure"] = printPressure();
+    root.prettyPrintTo(Serial);
+    Serial.println();
     server.send(200, "application/json", formatJSON(root));
     digitalWrite(led, 0);
 }
