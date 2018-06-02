@@ -22,6 +22,12 @@ SH1106 display(0x3c, D1, D2);
 //BMP280
 #include "Seeed_BME280.h"
 BME280 bme; // I2C
+#define def_wifi 0
+#define def_temperature 1
+#define def_humidity 2
+#define def_pressure 3
+#define def_altitude 4
+
 
 #include <math.h>
 #include <FS.h>                            //stockage de settings
@@ -106,6 +112,7 @@ void setup() {
   server.on("/humidity", HTTP_GET, handleHumidity);
   server.on("/pressure", HTTP_GET, handlePressure);
   server.on("/temperature", HTTP_GET, handleTemperature);
+  server.on("/wifi", HTTP_GET, handleWifi);
   // server.on("/params", HTTP_GET, handleParams);
   // server.on("/params", HTTP_POST, handleUpdateParams);
   // server.on("/action", HTTP_GET, handleAction);
@@ -164,25 +171,30 @@ void displayManagement() {
             }
             display.setFont(ArialMT_Plain_10);
             display.setTextAlignment(TEXT_ALIGN_CENTER);
-            display.drawString(96, 54, String(signalWiFi) + "dBm");
+            JsonObject& json_wifi = jsonBuffer.parseObject(getMeasure(def_wifi));
+            display.drawString(96, 54, json_wifi["wifi"]["toString"]);
         }
     }
 
     display.setFont(ArialMT_Plain_16);
     display.setTextAlignment(TEXT_ALIGN_CENTER);
-    display.drawString(32, 11, printTemperature());
+    JsonObject& json_temp = jsonBuffer.parseObject(getMeasure(def_temperature));
+    display.drawString(32, 11, json_temp["temperature"]["toString"]);
 
     display.setFont(ArialMT_Plain_16);
     display.setTextAlignment(TEXT_ALIGN_CENTER);
-    display.drawString(96, 11, printHumidity());
+    JsonObject& json_humi = jsonBuffer.parseObject(getMeasure(def_humidity));
+    display.drawString(96, 11, json_humi["humidity"]["toString"]);
 
     display.setFont(ArialMT_Plain_16);
     display.setTextAlignment(TEXT_ALIGN_CENTER);
-    display.drawString(32, 32, printPressure());
+    JsonObject& json_pres = jsonBuffer.parseObject(getMeasure(def_pressure));
+    display.drawString(32, 32, json_pres["pressure"]["toString"]);
 
     display.setFont(ArialMT_Plain_16);
     display.setTextAlignment(TEXT_ALIGN_CENTER);
-    display.drawString(96, 32, printAltitude());
+    JsonObject& json_alti = jsonBuffer.parseObject(getMeasure(def_altitude));
+    display.drawString(96, 32, json_alti["altitude"]["toString"]);
 
     display.setFont(ArialMT_Plain_10);
     display.setTextAlignment(TEXT_ALIGN_CENTER);
@@ -197,7 +209,7 @@ void displayManagement() {
 
 void configModeCallback (WiFiManager *myWiFiManager) {
     display.clear();
-    display.setFont(ArialMT_Plain_16);
+    display.setFont(ArialMT_Plain_10);
     display.setTextAlignment(TEXT_ALIGN_CENTER);
     display.drawString(64, 10, "Configuaration Mode");
     display.drawString(64, 28, "please connect to " + String(configurationAPName));
@@ -279,51 +291,101 @@ String formatJSON(const JsonObject& obj) {
     return strOut;
 }
 
-String printTemperature() {
-    float value = bme.getTemperature();
-    char result[10];
-    dtostrf(value,1,2,result);
-    String strOut = result;
-    return strOut + " C";
-}
+// const JsonObject& getMeasure(int sensor) {
+String getMeasure(int sensor) {
+  jsonBuffer.clear();
+  String label= "";
+  float value = 0;
+  unsigned int decimal = 2;
+  String unit = "";
 
-String printHumidity() {
-    float value = bme.getHumidity();
-    char result[10];
-    dtostrf(value,1,2,result);
-    String strOut = result;
-    return strOut + " %";
-}
+  switch (sensor) {
+    case def_wifi:
+      label = "wifi";
+      value = WiFi.RSSI();
+      decimal = 0;
+      unit = "dbm";
+      break;
+    case def_temperature:
+      label = "temperature";
+      value = bme.getTemperature();
+      decimal = 1;
+      unit = "c";
+      break;
+    case def_humidity:
+      label = "humidity";
+      value = bme.getHumidity();
+      decimal = 1;
+      unit = "%";
+      break;
+    case def_pressure:
+      label = "pressure";
+      value = bme.getPressure()/100;
+      decimal = 0;
+      unit = "hP";
+      break;
+    case def_altitude:
+      label = "altitude";
+      value = bme.calcAltitude(bme.getPressure());
+      decimal = 0;
+      unit = "m";
+      break;
+    default:
+      label= "unknown";
+      value = 0;
+      unit = "";
+      break;
+  }
+  JsonObject& measure = jsonBuffer.createObject();
+  JsonObject& content = measure.createNestedObject(label);
+  char result[10];
+  dtostrf(value, 1, decimal, result);
+  String valueStr = result;
+  content["value"] = valueStr;
+  content["unit"] = unit;
+  content["toString"] = valueStr + " " + unit;
+  // measure.prettyPrintTo(Serial);
 
-String printPressure() {
-    float value = bme.getPressure()/100;
-    char result[10];
-    dtostrf(value,1,0,result);
-    String strOut = result;
-    return strOut + " hP";
-}
-
-String printAltitude() {
-    float value = bme.calcAltitude(bme.getPressure());
-    char result[10];
-    dtostrf(value,1,0,result);
-    String strOut = result;
-    return strOut + " M";
+  return formatJSON(measure);
 }
 
 //***********
 //* routing *
 //***********
-
 void handleRoot() {
     digitalWrite(led, 1);
     jsonBuffer.clear();
-    JsonObject& root = jsonBuffer.createObject();
     //valeurs
-    root["altitude"] = printAltitude();
-    root["humidity"] = printHumidity();
-    root["pressure"] = printPressure();
-    root["temperature"] = printTemperature();
+    String altitude = getMeasure(def_altitude);
+    altitude.remove(0, 1);
+    altitude.remove(altitude.length()-1);
+    Serial.println(altitude);
+    String humidity = getMeasure(def_humidity);
+    humidity.remove(0, 1);
+    humidity.remove(humidity.length()-1);
+    Serial.println(humidity);
+    String pressure = getMeasure(def_pressure);
+    pressure.remove(0, 1);
+    pressure.remove(pressure.length()-1);
+    Serial.println(pressure);
+    String temperature = getMeasure(def_temperature);
+    temperature.remove(0, 1);
+    temperature.remove(temperature.length()-1);
+    Serial.println(temperature);
+    String wifi = getMeasure(def_wifi);
+    wifi.remove(0, 1);
+    wifi.remove(wifi.length()-1);
+    Serial.println(wifi);
+    String global = "{measure:{"
+      + altitude + ", "
+      + humidity + ", "
+      + pressure + ", "
+      + temperature + ", "
+      + wifi + "}"
+      + "}";
+    Serial.println(global);
+
+    JsonObject& root = jsonBuffer.parseObject(global);
     root.prettyPrintTo(Serial);
     Serial.println();
     //envoi
@@ -346,44 +408,30 @@ void handleParams() {
 
 void handleAltitude() {
     digitalWrite(led, 1);
-    jsonBuffer.clear();
-    JsonObject& root = jsonBuffer.createObject();
-    root["altitude"] = printAltitude();
-    root.prettyPrintTo(Serial);
-    Serial.println();
-    server.send(200, "application/json", formatJSON(root));
+    server.send(200, "application/json", getMeasure(def_altitude));
     digitalWrite(led, 0);
 }
 
 void handleHumidity() {
     digitalWrite(led, 1);
-    jsonBuffer.clear();
-    JsonObject& root = jsonBuffer.createObject();
-    root["humidity"] = printHumidity();
-    root.prettyPrintTo(Serial);
-    Serial.println();
-    server.send(200, "application/json", formatJSON(root));
+    server.send(200, "application/json", getMeasure(def_humidity));
     digitalWrite(led, 0);
 }
 
 void handlePressure() {
     digitalWrite(led, 1);
-    jsonBuffer.clear();
-    JsonObject& root = jsonBuffer.createObject();
-    root["pressure"] = printPressure();
-    root.prettyPrintTo(Serial);
-    Serial.println();
-    server.send(200, "application/json", formatJSON(root));
+    server.send(200, "application/json", getMeasure(def_pressure));
     digitalWrite(led, 0);
 }
 
 void handleTemperature() {
     digitalWrite(led, 1);
-    jsonBuffer.clear();
-    JsonObject& root = jsonBuffer.createObject();
-    root["temperature"] = printTemperature();
-    root.prettyPrintTo(Serial);
-    Serial.println();
-    server.send(200, "application/json", formatJSON(root));
+    server.send(200, "application/json", getMeasure(def_temperature));
+    digitalWrite(led, 0);
+}
+
+void handleWifi() {
+    digitalWrite(led, 1);
+    server.send(200, "application/json", getMeasure(def_wifi));
     digitalWrite(led, 0);
 }
