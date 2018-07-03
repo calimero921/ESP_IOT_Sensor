@@ -20,8 +20,12 @@ const char* configurationAPName = "AutoConnectAP";
 SH1106 display(0x3c, D1, D2);
 
 //BMP280
-#include "Seeed_BME280.h"
-BME280 bme; // I2C
+// #include "Seeed_BME280.h"
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+Adafruit_BME280 bme; // I2C
+#define SEALEVELPRESSURE_HPA (1013.25)
+
 #define def_wifi 0
 #define def_temperature 1
 #define def_humidity 2
@@ -67,7 +71,7 @@ void setup() {
   display.display();
 
   //bme280
-  if (!bme.init()) {
+  if (!bme.begin(0x76)) {
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
     while (1);
   }
@@ -308,25 +312,25 @@ String getMeasure(int sensor) {
       break;
     case def_temperature:
       label = "temperature";
-      value = bme.getTemperature();
+      value = bme.readTemperature();
       decimal = 1;
       unit = "c";
       break;
     case def_humidity:
       label = "humidity";
-      value = bme.getHumidity();
+      value = bme.readHumidity();
       decimal = 1;
       unit = "%";
       break;
     case def_pressure:
       label = "pressure";
-      value = bme.getPressure()/100;
+      value = bme.readPressure()/100;
       decimal = 0;
       unit = "hP";
       break;
     case def_altitude:
       label = "altitude";
-      value = bme.calcAltitude(bme.getPressure());
+      value = bme.readAltitude(SEALEVELPRESSURE_HPA);
       decimal = 0;
       unit = "m";
       break;
